@@ -22,3 +22,4 @@ Migrations já aplicadas antes da abertura deste repositório:
 - 20261121154857 operational_event_triggers
 
 A partir deste repositório, alterações novas devem ser versionadas em `supabase/migrations/` antes de serem aplicadas.
+- `20261121162400_operator_audit_and_order_detail.sql` — operador da venda, ator dos eventos e detalhe administrativo da venda.
