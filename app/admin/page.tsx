@@ -9,7 +9,7 @@ import { Activity, LogOut, Plus, Power, RefreshCw, WalletCards } from 'lucide-re
 type Ctx={user_id:string;tenant_id:string;role:'owner'|'cashier'|'staff';tenant_name:string;tenant_slug:string;demo_mode:boolean;full_name?:string;email?:string};
 type Product={id:string;name:string;description:string|null;price_cents:number;tickets_per_unit:number;active:boolean;sort_order:number};
 type Attraction={id:string;name:string;description:string|null;active:boolean};
-type Order={id:string;status:string;total_cents:number;buyer_name:string|null;provider:string|null;created_at:string};
+type Order={id:string;status:string;total_cents:number;buyer_name:string|null;provider:string|null;print_status:string;created_at:string;operator?:{full_name?:string|null;email?:string|null}|null};
 type Metric={sales_today:number;revenue_today_cents:number;tickets_today:number;printed_today:number};
 const money=(c:number)=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(c/100);
 
@@ -34,7 +34,7 @@ export default function AdminPage(){
       supabase.rpc('admin_dashboard',{p_tenant:tid}),
       supabase.from('products').select('*').eq('tenant_id',tid).order('sort_order'),
       supabase.from('attractions').select('*').eq('tenant_id',tid).order('name'),
-      supabase.from('orders').select('id,status,total_cents,buyer_name,provider,created_at').eq('tenant_id',tid).order('created_at',{ascending:false}).limit(20),
+      supabase.from('orders').select('id,status,total_cents,buyer_name,provider,print_status,created_at,operator:profiles!orders_operator_id_fkey(full_name,email)').eq('tenant_id',tid).order('created_at',{ascending:false}).limit(20),
       supabase.rpc('get_payment_connection_admin',{p_tenant:tid}),
     ]);
     if(m.data)setMetrics(m.data as Metric); if(p.data)setProducts(p.data as Product[]); if(a.data)setAttractions(a.data as Attraction[]); if(o.data)setOrders(o.data as Order[]); if(conn.data)setMp(conn.data);
@@ -81,7 +81,7 @@ export default function AdminPage(){
 
         <section className="adminCard"><h2>Criar operador do PDV</h2><p className="muted small">Acesso exclusivo para registrar vendas no tablet.</p><form className="stack" onSubmit={createStaff}><input className="input" required placeholder="Nome" value={staffName} onChange={e=>setStaffName(e.target.value)}/><input className="input" required type="email" placeholder="E-mail" value={staffEmail} onChange={e=>setStaffEmail(e.target.value)}/><input className="input" required minLength={8} type="password" placeholder="Senha inicial" value={staffPassword} onChange={e=>setStaffPassword(e.target.value)}/><button className="btn btnDark">Criar operador</button></form></section>
 
-        <section className="adminCard full"><h2>Vendas recentes</h2><div className="tableWrap"><table><thead><tr><th>Pedido</th><th>Cliente</th><th>Total</th><th>Status</th><th>Pagamento</th><th>Data</th></tr></thead><tbody>{orders.map(o=><tr key={o.id}><td>{o.id.slice(0,8).toUpperCase()}</td><td>{o.buyer_name||'—'}</td><td>{money(o.total_cents)}</td><td>{o.status}</td><td>{o.provider||'—'}</td><td>{new Date(o.created_at).toLocaleString('pt-BR')}</td></tr>)}</tbody></table></div></section>
+        <section className="adminCard full"><div className="row space"><h2>Vendas recentes</h2><span className="muted small">Operador, pagamento e impressão rastreados por venda</span></div><div className="tableWrap"><table><thead><tr><th>Pedido</th><th>Operador</th><th>Total</th><th>Status</th><th>Impressão</th><th>Data</th><th></th></tr></thead><tbody>{orders.map(o=><tr key={o.id}><td>{o.id.slice(0,8).toUpperCase()}</td><td>{o.operator?.full_name||o.operator?.email||'Online / sistema'}</td><td>{money(o.total_cents)}</td><td>{o.status}</td><td>{o.print_status}</td><td>{new Date(o.created_at).toLocaleString('pt-BR')}</td><td><a className="btn btnGhost btnSmall" href={`/admin/vendas/${o.id}`}>Detalhes</a></td></tr>)}</tbody></table></div></section>
       </div>
     </main>
   </div>;
