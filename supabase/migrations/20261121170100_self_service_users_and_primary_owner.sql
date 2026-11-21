@@ -99,15 +99,15 @@ create or replace function public.internal_validate_owner_setup(
 ) returns boolean
 language plpgsql
 security definer
-set search_path=public
-as $$
+set search_path=public,extensions
+as $
 declare t public.tenants;
 begin
   if not public.internal_secret_ok(p_secret) then raise exception 'forbidden'; end if;
   select * into t from public.tenants where slug=p_tenant_slug and active=true for update;
   if not found then return false; end if;
   if t.owner_setup_completed_at is not null or t.owner_setup_token_hash is null then return false; end if;
-  return encode(digest(coalesce(p_setup_code,''),'sha256'),'hex')=t.owner_setup_token_hash;
+  return encode(extensions.digest(coalesce(p_setup_code,''),'sha256'),'hex')=t.owner_setup_token_hash;
 end $$;
 
 revoke all on function public.internal_validate_owner_setup(text,text,text) from public;
@@ -123,8 +123,8 @@ create or replace function public.internal_claim_primary_owner(
 ) returns jsonb
 language plpgsql
 security definer
-set search_path=public
-as $$
+set search_path=public,extensions
+as $
 declare t public.tenants;
 begin
   if not public.internal_secret_ok(p_secret) then raise exception 'forbidden'; end if;
@@ -133,7 +133,7 @@ begin
   if not found then raise exception 'tenant_not_found'; end if;
   if t.owner_setup_completed_at is not null then raise exception 'setup_already_completed'; end if;
   if t.owner_setup_token_hash is null
-     or encode(digest(coalesce(p_setup_code,''),'sha256'),'hex')<>t.owner_setup_token_hash
+     or encode(extensions.digest(coalesce(p_setup_code,''),'sha256'),'hex')<>t.owner_setup_token_hash
   then raise exception 'invalid_setup_code'; end if;
 
   insert into public.profiles(id,full_name,email)
@@ -157,7 +157,7 @@ begin
         updated_at=now()
     where id=t.id;
 
-  insert into public.audit_logs(tenant_id,actor_id,action,entity_type,entity_id,metadata)
+  insert into public.audit_logs(tenant_id,actor_id,action,entity_type,entity_id,details)
   values(t.id,p_user_id,'PRIMARY_OWNER_ACTIVATED','tenant',t.id::text,
          jsonb_build_object('email',lower(trim(p_email))));
 
@@ -230,7 +230,7 @@ begin
   update public.memberships set active=p_active
   where tenant_id=p_tenant and user_id=p_user_id;
 
-  insert into public.audit_logs(tenant_id,actor_id,action,entity_type,entity_id,metadata)
+  insert into public.audit_logs(tenant_id,actor_id,action,entity_type,entity_id,details)
   values(p_tenant,auth.uid(),case when p_active then 'MEMBER_REACTIVATED' else 'MEMBER_DEACTIVATED' end,
          'membership',p_user_id::text,jsonb_build_object('target_role',target_role));
 
@@ -264,7 +264,7 @@ begin
   update public.memberships set role=p_role,active=true
   where tenant_id=p_tenant and user_id=p_user_id;
 
-  insert into public.audit_logs(tenant_id,actor_id,action,entity_type,entity_id,metadata)
+  insert into public.audit_logs(tenant_id,actor_id,action,entity_type,entity_id,details)
   values(p_tenant,auth.uid(),'MEMBER_ROLE_CHANGED','membership',p_user_id::text,
          jsonb_build_object('from_role',target_role,'to_role',p_role));
 
