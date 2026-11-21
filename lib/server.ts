@@ -1,5 +1,13 @@
+import { createClient } from '@supabase/supabase-js';
+
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!;
+
+function authClient(){
+  return createClient(SUPABASE_URL,SUPABASE_KEY,{
+    auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}
+  });
+}
 
 export async function rpc<T = unknown>(fn: string, body: Record<string, unknown>, accessToken?: string): Promise<T> {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
@@ -26,19 +34,26 @@ export async function verifyAccessToken(token: string) {
   return res.json() as Promise<{ id: string; email?: string }>;
 }
 
+export async function signInUser(email:string,password:string){
+  const client=authClient();
+  const {data,error}=await client.auth.signInWithPassword({email,password});
+  if(error)return {user:null,session:null,error};
+  return {user:data.user,session:data.session,error:null};
+}
+
 export async function signupUser(email: string, password: string, fullName: string) {
-  const res = await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
-    method: 'POST',
-    headers: { apikey: SUPABASE_KEY, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password, data: { full_name: fullName } }),
-    cache: 'no-store',
+  const client=authClient();
+  const {data,error}=await client.auth.signUp({
+    email,
+    password,
+    options:{data:{full_name:fullName}}
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data?.msg || data?.message || 'Falha ao criar usuário');
-  return data as {
-    user?: { id: string; email?: string };
-    access_token?: string;
-    refresh_token?: string;
+  if(error) throw error;
+  return {
+    user:data.user,
+    access_token:data.session?.access_token,
+    refresh_token:data.session?.refresh_token,
+    identities:data.user?.identities||[],
   };
 }
 
