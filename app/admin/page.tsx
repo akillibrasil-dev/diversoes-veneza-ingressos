@@ -1,12 +1,12 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { BrandLogo } from '@/components/BrandLogo';
 import { supabase } from '@/lib/supabase';
-import { Activity, LogOut, Plus, Power, RefreshCw, WalletCards } from 'lucide-react';
+import { Activity, LogOut, Plus, Power, RefreshCw, Users, WalletCards } from 'lucide-react';
 
-type Ctx={user_id:string;tenant_id:string;role:'owner'|'cashier'|'staff';tenant_name:string;tenant_slug:string;demo_mode:boolean;full_name?:string;email?:string};
+type Ctx={user_id:string;tenant_id:string;role:'owner'|'admin'|'cashier'|'staff';tenant_name:string;tenant_slug:string;demo_mode:boolean;full_name?:string;email?:string};
 type Product={id:string;name:string;description:string|null;price_cents:number;tickets_per_unit:number;active:boolean;sort_order:number};
 type Attraction={id:string;name:string;description:string|null;active:boolean};
 type Order={id:string;status:string;total_cents:number;buyer_name:string|null;provider:string|null;print_status:string;created_at:string;operator?:{full_name?:string|null;email?:string|null}|null};
@@ -21,21 +21,25 @@ export default function AdminPage(){
   const [mp,setMp]=useState<any>({status:'disconnected'});
   const [pName,setPName]=useState(''); const [pPrice,setPPrice]=useState(''); const [pTickets,setPTickets]=useState('1');
   const [aName,setAName]=useState('');
-  const [staffName,setStaffName]=useState(''); const [staffEmail,setStaffEmail]=useState(''); const [staffPassword,setStaffPassword]=useState('');
 
   const load=useCallback(async()=>{
     const {data:{session}}=await supabase.auth.getSession();
     if(!session){router.replace('/login');return;}
     const {data:c,error}=await supabase.rpc('get_my_context');
-    if(error||!c||c.role!=='owner'){router.replace(c?.role==='cashier'?'/pdv':c?.role==='staff'?'/portaria':'/login');return;}
+    if(error||!c||!['owner','admin'].includes(c.role)){
+      router.replace(c?.role==='cashier'?'/pdv':c?.role==='staff'?'/portaria':'/login');return;
+    }
     setCtx(c as Ctx);
     const tid=c.tenant_id;
+    const connPromise=c.role==='owner'
+      ? supabase.rpc('get_payment_connection_admin',{p_tenant:tid})
+      : Promise.resolve({data:{status:'restricted'},error:null} as any);
     const [m,p,a,o,conn]=await Promise.all([
       supabase.rpc('admin_dashboard',{p_tenant:tid}),
       supabase.from('products').select('*').eq('tenant_id',tid).order('sort_order'),
       supabase.from('attractions').select('*').eq('tenant_id',tid).order('name'),
       supabase.from('orders').select('id,status,total_cents,buyer_name,provider,print_status,created_at,operator:profiles!orders_operator_id_fkey(full_name,email)').eq('tenant_id',tid).order('created_at',{ascending:false}).limit(20),
-      supabase.rpc('get_payment_connection_admin',{p_tenant:tid}),
+      connPromise,
     ]);
     if(m.data)setMetrics(m.data as Metric); if(p.data)setProducts(p.data as Product[]); if(a.data)setAttractions(a.data as Attraction[]); if(o.data)setOrders(o.data as Order[]); if(conn.data)setMp(conn.data);
     setLoading(false);
@@ -55,31 +59,34 @@ export default function AdminPage(){
   async function toggleProduct(p:Product){await supabase.from('products').update({active:!p.active}).eq('id',p.id);load()}
   async function addAttraction(e:FormEvent){e.preventDefault();if(!ctx||!aName)return;const {error}=await supabase.from('attractions').insert({tenant_id:ctx.tenant_id,name:aName,active:true});setMessage(error?error.message:'Atração criada.');if(!error){setAName('');load()}}
   async function toggleAttraction(a:Attraction){await supabase.from('attractions').update({active:!a.active}).eq('id',a.id);load()}
-  async function createStaff(e:FormEvent){e.preventDefault();if(!ctx)return;setMessage('');const {data:{session}}=await supabase.auth.getSession();if(!session)return;const res=await fetch('/api/admin/create-staff',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${session.access_token}`},body:JSON.stringify({fullName:staffName,email:staffEmail,password:staffPassword,tenantId:ctx.tenant_id,role:'cashier'})});const out=await res.json();setMessage(res.ok?'Operador criado. Se a confirmação de e-mail estiver ativa, ele deverá confirmar o endereço antes do primeiro acesso.':out.error||'Falha ao criar funcionário.');if(res.ok){setStaffName('');setStaffEmail('');setStaffPassword('')}}
   async function connectMp(){
     const {data:{session}}=await supabase.auth.getSession();if(!session)return;
     const res=await fetch('/api/mercadopago/authorize',{method:'POST',headers:{Authorization:`Bearer ${session.access_token}`}});const out=await res.json();
     if(!res.ok){setMessage(out.error||'Integração Mercado Pago ainda não configurada.');return;} window.location.href=out.url;
   }
-  async function disconnectMp(){if(!ctx)return;if(!confirm('Desconectar a conta Mercado Pago?'))return;const {error}=await supabase.rpc('owner_disconnect_mp',{p_tenant:ctx.tenant_id});setMessage(error?error.message:'Mercado Pago desconectado.');load()}
+  async function disconnectMp(){if(!ctx||ctx.role!=='owner')return;if(!confirm('Desconectar a conta Mercado Pago?'))return;const {error}=await supabase.rpc('owner_disconnect_mp',{p_tenant:ctx.tenant_id});setMessage(error?error.message:'Mercado Pago desconectado.');load()}
 
-  const utilization=useMemo(()=>metrics.tickets_today?Math.round(metrics.printed_today/metrics.tickets_today*100):0,[metrics]);
   if(loading)return <main className="authWrap"><div className="authCard"><BrandLogo/><p>Carregando painel...</p></div></main>;
   return <div className="adminLayout">
-    <header className="adminTop"><div className="headerInner"><BrandLogo compact/><div className="row"><a className="btn btnGhost btnSmall" href="/admin/suporte"><Activity size={15}/> Suporte</a><a className="btn btnGhost btnSmall" href="/pdv">Abrir PDV</a><button className="btn btnGhost btnSmall" onClick={logout}><LogOut size={15}/> Sair</button></div></div></header>
+    <header className="adminTop"><div className="headerInner"><BrandLogo compact/><div className="row"><a className="btn btnGhost btnSmall" href="/admin/usuarios"><Users size={15}/> Usuários</a><a className="btn btnGhost btnSmall" href="/admin/suporte"><Activity size={15}/> Suporte</a><a className="btn btnGhost btnSmall" href="/pdv">Abrir PDV</a><button className="btn btnGhost btnSmall" onClick={logout}><LogOut size={15}/> Sair</button></div></div></header>
     <main className="container adminMain">
-      <div className="adminHero"><div><h1>Painel do parque</h1><p>{ctx?.full_name||'Administrador'} · {ctx?.tenant_name}</p></div><button className="btn btnGhost" onClick={load}><RefreshCw size={16}/> Atualizar</button></div>
+      <div className="adminHero"><div><h1>Painel do parque</h1><p>{ctx?.full_name||'Administrador'} · {ctx?.tenant_name} · {ctx?.role==='owner'?'Proprietário':'Administrador'}</p></div><button className="btn btnGhost" onClick={load}><RefreshCw size={16}/> Atualizar</button></div>
       {message&&<div className="notice" style={{marginBottom:18}}>{message}</div>}
       {ctx?.demo_mode&&<div className="notice noticeWarn" style={{marginBottom:18}}><strong>Modo demonstração ativo.</strong> As compras podem ser simuladas sem cobrança. Ao conectar o Mercado Pago, novas vendas do PDV passam ao fluxo real na maquineta Point.</div>}
       <section className="metrics"><div className="metric"><small>Vendas hoje</small><strong>{metrics.sales_today}</strong></div><div className="metric"><small>Receita hoje</small><strong>{money(metrics.revenue_today_cents)}</strong></div><div className="metric"><small>Ingressos emitidos</small><strong>{metrics.tickets_today}</strong></div><div className="metric"><small>Tickets impressos</small><strong>{metrics.printed_today}</strong></div></section>
       <div className="adminGrid">
-        <section className="adminCard full"><div className="row space"><h2>Produtos e preços</h2><span className="muted small">O dono pode alterar a qualquer momento</span></div><div className="tableWrap"><table><thead><tr><th>Produto</th><th>Preço</th><th>Tickets</th><th>Status</th><th></th></tr></thead><tbody>{products.map(p=><tr key={p.id}><td><strong>{p.name}</strong></td><td>{money(p.price_cents)}</td><td>{p.tickets_per_unit}</td><td>{p.active?'Ativo':'Inativo'}</td><td><div className="inlineActions"><button className="btn btnGhost btnSmall" onClick={()=>editProduct(p)}>Editar</button><button className="btn btnGhost btnSmall" onClick={()=>toggleProduct(p)}><Power size={14}/>{p.active?'Desativar':'Ativar'}</button></div></td></tr>)}</tbody></table></div>
+        <section className="adminCard full"><div className="row space"><h2>Produtos e preços</h2><span className="muted small">Proprietário e administradores podem alterar</span></div><div className="tableWrap"><table><thead><tr><th>Produto</th><th>Preço</th><th>Tickets</th><th>Status</th><th></th></tr></thead><tbody>{products.map(p=><tr key={p.id}><td><strong>{p.name}</strong></td><td>{money(p.price_cents)}</td><td>{p.tickets_per_unit}</td><td>{p.active?'Ativo':'Inativo'}</td><td><div className="inlineActions"><button className="btn btnGhost btnSmall" onClick={()=>editProduct(p)}>Editar</button><button className="btn btnGhost btnSmall" onClick={()=>toggleProduct(p)}><Power size={14}/>{p.active?'Desativar':'Ativar'}</button></div></td></tr>)}</tbody></table></div>
           <form className="inlineForm" onSubmit={addProduct}><input className="input" placeholder="Novo produto" value={pName} onChange={e=>setPName(e.target.value)}/><input className="input" placeholder="Preço (R$)" value={pPrice} onChange={e=>setPPrice(e.target.value)}/><input className="input" type="number" min="1" placeholder="Tickets" value={pTickets} onChange={e=>setPTickets(e.target.value)}/><button className="btn btnPrimary"><Plus size={16}/> Criar</button></form>
         </section>
 
-                <section className="adminCard"><h2>Mercado Pago Point</h2><div className="notice" style={{marginBottom:14}}>O dono conecta a própria conta no ambiente oficial do Mercado Pago. A plataforma nunca recebe a senha dele.</div>{mp?.status==='connected'?<><p><strong>Conta conectada</strong><br/><span className="muted small">{mp.provider_nickname||mp.provider_email||mp.provider_user_id}</span></p><button className="btn btnDanger" onClick={disconnectMp}>Desconectar</button></>:<button className="btn btnPrimary" onClick={connectMp}><WalletCards size={18}/> Conectar Mercado Pago</button>}</section>
+        <section className="adminCard"><h2>Equipe e acessos</h2><p className="muted small">Cadastre administradores auxiliares e operadores do PDV sem acessar o Supabase.</p><a className="btn btnDark" href="/admin/usuarios"><Users size={17}/> Gerenciar usuários</a></section>
 
-        <section className="adminCard"><h2>Criar operador do PDV</h2><p className="muted small">Acesso exclusivo para registrar vendas no tablet.</p><form className="stack" onSubmit={createStaff}><input className="input" required placeholder="Nome" value={staffName} onChange={e=>setStaffName(e.target.value)}/><input className="input" required type="email" placeholder="E-mail" value={staffEmail} onChange={e=>setStaffEmail(e.target.value)}/><input className="input" required minLength={8} type="password" placeholder="Senha inicial" value={staffPassword} onChange={e=>setStaffPassword(e.target.value)}/><button className="btn btnDark">Criar operador</button></form></section>
+        <section className="adminCard"><h2>Mercado Pago Point</h2>
+          {ctx?.role==='owner'?<>
+            <div className="notice" style={{marginBottom:14}}>A conexão financeira é exclusiva do proprietário principal. A plataforma nunca recebe a senha do Mercado Pago.</div>
+            {mp?.status==='connected'?<><p><strong>Conta conectada</strong><br/><span className="muted small">{mp.provider_nickname||mp.provider_email||mp.provider_user_id}</span></p><button className="btn btnDanger" onClick={disconnectMp}>Desconectar</button></>:<button className="btn btnPrimary" onClick={connectMp}><WalletCards size={18}/> Conectar Mercado Pago</button>}
+          </>:<div className="notice">Somente o proprietário principal pode conectar ou desconectar a conta Mercado Pago.</div>}
+        </section>
 
         <section className="adminCard full"><div className="row space"><h2>Vendas recentes</h2><span className="muted small">Operador, pagamento e impressão rastreados por venda</span></div><div className="tableWrap"><table><thead><tr><th>Pedido</th><th>Operador</th><th>Total</th><th>Status</th><th>Impressão</th><th>Data</th><th></th></tr></thead><tbody>{orders.map(o=><tr key={o.id}><td>{o.id.slice(0,8).toUpperCase()}</td><td>{o.operator?.full_name||o.operator?.email||'Online / sistema'}</td><td>{money(o.total_cents)}</td><td>{o.status}</td><td>{o.print_status}</td><td>{new Date(o.created_at).toLocaleString('pt-BR')}</td><td><a className="btn btnGhost btnSmall" href={`/admin/vendas/${o.id}`}>Detalhes</a></td></tr>)}</tbody></table></div></section>
       </div>
