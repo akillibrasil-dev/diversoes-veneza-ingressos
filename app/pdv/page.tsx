@@ -114,16 +114,12 @@ export default function PdvPage(){
         p_items:lines.map(l=>({product_id:l.id,quantity:l.quantity}))
       });
       if(oErr||!o)throw oErr||new Error('Falha ao criar venda.');
-      await logEvent('SALE_CREATED','info',o.id,'Venda criada no PDV',{total_cents:total,tickets:ticketCount,terminal_id:terminalId});
-
       const chargeRes=await fetch('/api/point/charge',{
         method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${session.access_token}`},
         body:JSON.stringify({orderId:o.id,accessKey:o.access_key,terminalId})
       });
       const chargeBody=await chargeRes.json();
       if(!chargeRes.ok)throw new Error(chargeBody.error||'Falha ao enviar cobrança.');
-      await logEvent('PAYMENT_REQUESTED','info',o.id,chargeBody.demo?'Pagamento demo processado':'Cobrança enviada ao terminal',{terminal_id:terminalId,provider_order_id:chargeBody.providerOrderId||null});
-
       setPhase('waiting');
       setMessage(chargeBody.demo?'Pagamento de demonstração aprovado. Preparando tickets...':'Cobrança enviada. Conclua o pagamento na maquineta.');
 
@@ -131,7 +127,6 @@ export default function PdvPage(){
         const current=await readOrder(o.id,o.access_key,session.access_token);
         if(current.order.status==='paid'){
           setPhase('paid');setMessage('Pagamento confirmado. Abrindo fila de impressão...');
-          await logEvent('PAYMENT_CONFIRMED','info',o.id,'Pagamento confirmado; tickets liberados para impressão',{print_jobs:current.print_jobs?.length||0});
           await sleep(550);
           router.push(`/imprimir/${encodeURIComponent(o.id)}?k=${encodeURIComponent(o.access_key)}&auto=1`);
           return;
