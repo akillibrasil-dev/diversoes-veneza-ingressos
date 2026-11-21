@@ -9,15 +9,21 @@
 - criação de fila persistente de impressão;
 - falha de impressão mantém a venda como paga;
 - reset e reimpressão não criam nova cobrança;
-- conclusão da venda após todos os tickets serem marcados como impressos.
+- conclusão da venda após todos os tickets serem marcados como impressos;
+- identificação do operador responsável pela venda;
+- trilha de eventos vinculada ao operador;
+- consulta administrativa detalhada da venda por RPC, protegida para owner.
 
 ## Já validado em build/deploy
 
 - build de produção Next.js/TypeScript;
-- `/` redireciona para `/pdv`;
-- `/pdv` responde HTTP 200;
+- `/` e `/pdv` respondem HTTP 200;
+- `/login` responde HTTP 200;
 - `/status` responde HTTP 200;
-- `/api/status` confirma aplicação, banco, catálogo, Point Orders e impressão física ativos.
+- `/api/status` confirma aplicação, banco, catálogo, Point Orders e impressão física ativos;
+- `/admin/suporte` responde HTTP 200;
+- `/admin/vendas/[id]` está presente no build e responde HTTP 200 antes da verificação de sessão no cliente;
+- deploy de produção concluído na Vercel após a evolução de auditoria.
 
 ## Pendente de hardware/conta real
 
