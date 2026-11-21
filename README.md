@@ -28,6 +28,8 @@ MVP white-label de ponto de venda para parque de diversões, desenvolvido pela A
 - `/imprimir/[id]` — fila e impressão de tickets físicos
 - `/login` — acesso da equipe
 - `/admin` — produtos, vendas e conexão Mercado Pago
+- `/admin/usuarios` — gestão de proprietário, administradores e operadores
+- `/primeiro-acesso` — ativação única do proprietário principal
 - `/status` — diagnóstico técnico
 
 Rotas `/online`, `/pedido/[id]` e `/portaria` permanecem apenas como trilha experimental do protótipo digital e não compõem o fluxo operacional atual do cliente.
@@ -59,3 +61,12 @@ O terminal é enviado em `config.point.terminal_id`. O sistema usa `print_on_ter
 - fila de impressão persistente;
 - falha de impressão nunca reabre cobrança;
 - webhook HMAC disponível para produção.
+
+
+## Gestão de usuários
+
+- existe um único proprietário principal (`owner`);
+- o proprietário pode criar administradores auxiliares (`admin`) e operadores do PDV (`cashier`);
+- administradores podem gerir a operação e criar operadores, mas não podem assumir a propriedade nem conectar/desconectar a conta Mercado Pago;
+- usuários podem ser desativados sem apagar o histórico de vendas;
+- o primeiro proprietário é ativado por link/código único, armazenado no banco apenas como hash SHA-256.
