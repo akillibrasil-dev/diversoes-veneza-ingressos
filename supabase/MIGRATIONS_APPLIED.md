@@ -26,3 +26,5 @@ A partir deste repositório, alterações novas devem ser versionadas em `supaba
 
 - `20261121170000_add_admin_role.sql` — perfil de administrador auxiliar.
 - `20261121170100_self_service_users_and_primary_owner.sql` — proprietário principal, ativação única e gestão de equipe.
+
+- `20261121170200_fix_owner_setup_pgcrypto_schema.sql` — corrige resolução do `pgcrypto` no código de ativação.
