@@ -18,6 +18,7 @@
 2. Conectar o repositório à esteira de deploy Git/Vercel.
 3. Evoluir o painel de suporte para diagnóstico guiado e, depois, suporte inteligente por IA com ferramentas restritas.
 4. ✅ Histórico detalhado da venda e trilha de auditoria por operador implementados no painel.
+5. ✅ Gestão self-service de proprietário, administradores auxiliares e operadores implementada.
 
 ## Dependências externas para fechar o piloto físico
 
