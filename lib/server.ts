@@ -35,7 +35,11 @@ export async function signupUser(email: string, password: string, fullName: stri
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data?.msg || data?.message || 'Falha ao criar usuário');
-  return data as { user?: { id: string; email?: string } };
+  return data as {
+    user?: { id: string; email?: string };
+    access_token?: string;
+    refresh_token?: string;
+  };
 }
 
 export function internalSecret() {
