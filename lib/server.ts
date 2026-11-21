@@ -46,7 +46,10 @@ export async function signupUser(email: string, password: string, fullName: stri
   const {data,error}=await client.auth.signUp({
     email,
     password,
-    options:{data:{full_name:fullName}}
+    options:{
+      data:{full_name:fullName},
+      emailRedirectTo:`${(process.env.SITE_URL || 'https://diversoes-veneza-ingressos.vercel.app').replace(/\/$/,'')}/login`
+    }
   });
   if(error) throw error;
   return {
