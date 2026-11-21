@@ -23,3 +23,6 @@ Migrations já aplicadas antes da abertura deste repositório:
 
 A partir deste repositório, alterações novas devem ser versionadas em `supabase/migrations/` antes de serem aplicadas.
 - `20261121162400_operator_audit_and_order_detail.sql` — operador da venda, ator dos eventos e detalhe administrativo da venda.
+
+- `20261121170000_add_admin_role.sql` — perfil de administrador auxiliar.
+- `20261121170100_self_service_users_and_primary_owner.sql` — proprietário principal, ativação única e gestão de equipe.
