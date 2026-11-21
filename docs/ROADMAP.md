@@ -17,7 +17,7 @@
 1. Consolidar todo o schema Supabase em migrations versionadas no repositório.
 2. Conectar o repositório à esteira de deploy Git/Vercel.
 3. Evoluir o painel de suporte para diagnóstico guiado e, depois, suporte inteligente por IA com ferramentas restritas.
-4. Adicionar histórico detalhado da venda e trilha de auditoria por operador.
+4. ✅ Histórico detalhado da venda e trilha de auditoria por operador implementados no painel.
 
 ## Dependências externas para fechar o piloto físico
 
